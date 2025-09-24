@@ -7,3 +7,5 @@ import { TokensService } from './tokens.service';
   providers: [TokensService]
 })
 export class TokensModule {}
+
+// tokens de autenticação (JWT) para acesso à API
