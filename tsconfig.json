@@ -20,6 +20,10 @@
     "forceConsistentCasingInFileNames": true,
     "noImplicitAny": false,
     "strictBindCallApply": false,
-    "noFallthroughCasesInSwitch": false
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@db/primary": ["node_modules/.prisma/primary/index"],
+      "@db/secondary": ["node_modules/.prisma/secondary/index"]
+    }
   }
 }
