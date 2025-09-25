@@ -1,55 +1,75 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
+// src/tokens/tokens.controller.ts
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Headers,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth/jwt-auth.guard';
 import { TokensService } from './tokens.service';
-import { ListTokensQuery } from './dto/list-tokens.dto/list-tokens.query';
 import { CreateTokenDto } from './dto/create-token.dto/create-token.dto';
 
-@ApiTags('tokens')
-@ApiBearerAuth('bearer')
 @UseGuards(JwtAuthGuard)
 @Controller('tokens')
 export class TokensController {
   constructor(private readonly tokens: TokensService) {}
 
+  private getUserFromReq(req: any) {
+    const id = req?.user?.userId ?? req?.user?.id ?? req?.user?.sub;
+    const role = req?.user?.role;
+    return { id, role };
+  }
+
   @Get()
-  @ApiQuery({ name: 'type', required: false, enum: ['both','owner','creator'], example: 'both' })
-  @ApiQuery({ name: 'page', required: false, example: 1 })
-  @ApiQuery({ name: 'pageSize', required: false, example: 20 })
-  @ApiOkResponse({
-    description: 'Tokens do usuário (owner/creator)',
-    schema: {
-      example: {
-        meta: { page: 1, pageSize: 20, total: 1 },
-        items: [
-          {
-            id: 'uuid',
-            userId: 'uuid', createdByUserId: 'uuid',
-            scope: 'READ_WRITE', isActive: true,
-            expiresAt: '2099-01-01T00:00:00.000Z',
-            createdAt: '2025-09-24T10:00:00.000Z',
-            revokedAt: null,
-            description: 'key teste',
-            User_Token_userIdToUser: { id: 'uuid', email: 'owner@local.com', role: 'USER' },
-            User_Token_createdByUserIdToUser: { id: 'uuid', email: 'admin@local.com', role: 'ADMIN' }
-          }
-        ]
-      }
-    }
-  })
-  async list(@Req() req: any, @Query() q: ListTokensQuery) {
-    const me = { id: req.user.sub, role: req.user.role };
-    return this.tokens.listForUser(me as any, q);
+  async list(
+    @Req() req: any,
+    @Query('type') type: 'both' | 'owner' | 'creator' = 'both',
+    @Query('page') page = 1,
+    @Query('pageSize') pageSize = Number(process.env.DEFAULT_PAGE_SIZE ?? 20),
+  ) {
+    const me = this.getUserFromReq(req);
+    return this.tokens.listForUser(me as any, {
+      type,
+      page: Number(page),
+      pageSize: Number(pageSize),
+    });
   }
 
   @Post()
   async create(@Req() req: any, @Body() dto: CreateTokenDto) {
-    const issuer = { id: req.user.sub, role: req.user.role };
+    const issuer = this.getUserFromReq(req);
     return this.tokens.create(issuer as any, dto);
   }
 
-  @Delete(':id')
-  async revoke(@Param('id') id: string) {
-    return this.tokens.revoke(id);
+  /** Revoga lendo o tokenId de um header (tokenid | x-token-id | token-id) */
+  @Delete()
+  async revokeFromHeader(
+    @Req() req: any,
+    @Headers() headers: Record<string, string | string[] | undefined>,
+  ) {
+    const issuer = this.getUserFromReq(req);
+
+    // Normaliza e tenta achar o header em 3 nomes possíveis
+    const pick = (h?: string | string[]) =>
+      Array.isArray(h) ? h[0] : h;
+
+    const tokenId =
+      pick(headers['tokenid']) ||
+      pick(headers['x-token-id']) ||
+      pick(headers['token-id']);
+
+    if (!tokenId) {
+      throw new BadRequestException(
+        'Informe o tokenId no header (tokenid, x-token-id ou token-id).',
+      );
+    }
+
+    return this.tokens.revoke(tokenId, issuer as any);
   }
 }
