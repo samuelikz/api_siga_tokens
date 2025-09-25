@@ -22,8 +22,12 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@db/primary": ["node_modules/.prisma/primary/index"],
-      "@db/secondary": ["node_modules/.prisma/secondary/index"]
+      "@db/primary": [
+        "node_modules/.prisma/primary/index"
+      ],
+      "@db/secondary": [
+        "node_modules/.prisma/secondary/index"
+      ]
     }
   }
 }

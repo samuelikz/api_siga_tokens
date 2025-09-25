@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaSecondaryService } from '../prisma/prisma-secondary.service';
-import { ListImoveisQuery } from './dto/list-imoveis.query';
+import { ListImoveisQuery } from './dto/list-imoveis.query/list-imoveis.query';
 
 @Injectable()
 export class ImoveisService {
@@ -23,8 +23,8 @@ export class ImoveisService {
     }
 
     const [items, total] = await Promise.all([
-      this.db.sua_tabela_imoveis.findMany({ where, skip, take }), // <-- ajuste o nome depois do introspect
-      this.db.sua_tabela_imoveis.count({ where }),
+      this.db.ad_imovel.findMany({ where, skip, take }), 
+      this.db.ad_imovel.count({ where }),
     ]);
 
     return { page, pageSize: take, total, items };

@@ -9,11 +9,11 @@ import { ImoveisModule } from './imoveis/imoveis.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    PrismaModule,
+    PrismaModule,   
     AuthModule,
     UsersModule,
     TokensModule,
     ImoveisModule,
   ],
 })
-export class AppModule { }
+export class AppModule {}

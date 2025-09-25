@@ -1,11 +1,10 @@
 import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator';
-import { Prisma } from '@db/primary';
-type TokenScope = Prisma.$Enums.TokenScope;
+import type { TokenScope } from 'src/common/types/enums';
+import { TokenScopeEnum } from 'src/common/types/enums';
 
 export class CreateTokenDto {
-  @IsOptional() @IsString() userId?: string;           // ADMIN pode definir; USER ignora
-  @IsEnum({ READ:'READ', WRITE:'WRITE', ADMIN:'ADMIN' }) scope!: TokenScope;
-  @IsDateString() expiresAt!: string;                   // ISO
+  @IsOptional() @IsString() userId?: string;  // ADMIN pode definir; USER ignora
+  @IsEnum(TokenScopeEnum) scope!: TokenScope; // 'READ' | 'WRITE' | 'READ_WRITE'
+  @IsDateString() expiresAt!: string;
   @IsOptional() @IsString() description?: string;
 }
-// export class CreateTokenDto {}

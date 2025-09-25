@@ -1,16 +1,17 @@
+// src/tokens/tokens.controller.ts
 import { Body, Controller, Delete, Param, Post, Req, UseGuards } from '@nestjs/common';
 import { TokensService } from './tokens.service';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth/jwt-auth.guard';
 import { CreateTokenDto } from './dto/create-token.dto/create-token.dto';
 
 @Controller('tokens')
-@UseGuards(JwtAuthGuard)   // PRIMÁRIA = JWT
+@UseGuards(JwtAuthGuard) // PRIMÁRIA = JWT
 export class TokensController {
   constructor(private readonly tokens: TokensService) {}
 
   @Post()
   async create(@Req() req: any, @Body() dto: CreateTokenDto) {
-    const issuer = { id: req.user.userId, role: req.user.role };
+    const issuer = { id: req.user.sub, role: req.user.role }; // <- AQUI
     return this.tokens.create(issuer as any, dto);
   }
 

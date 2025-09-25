@@ -10,17 +10,20 @@
     "start:dev": "nest start --watch",
     "build": "nest build",
     "start:prod": "node dist/main.js",
-
+    "postinstall": "prisma generate --schema prisma/primary/schema.prisma && prisma generate --schema prisma/secondary/schema.prisma",
     "prisma:migrate:primary": "prisma migrate dev --schema prisma/primary/schema.prisma",
+    "prisma:pull:primary": "prisma db pull --schema prisma//primary/schema.prisma",
     "prisma:deploy:primary": "prisma migrate deploy --schema prisma/primary/schema.prisma",
     "prisma:pull:secondary": "prisma db pull --schema prisma/secondary/schema.prisma",
     "prisma:gen:primary": "prisma generate --schema prisma/primary/schema.prisma",
     "prisma:gen:secondary": "prisma generate --schema prisma/secondary/schema.prisma",
     "prisma:gen": "pnpm prisma:gen:primary && pnpm prisma:gen:secondary",
     "prisma:studio:primary": "prisma studio --schema prisma/primary/schema.prisma",
-    "seed:primary": "prisma db seed --schema prisma/primary/schema.prisma"
+    "seed:primary": "prisma db seed --schema prisma/primary/schema.prisma",
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "regen": "pnpm clean && pnpm prisma:gen:primary && pnpm prisma:gen:secondary"
   },
-  "prisma": { 
+  "prisma": {
     "seed": "tsx prisma/primary/seed.ts"
   },
   "dependencies": {
@@ -30,6 +33,7 @@
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/swagger": "^11.2.0",
     "@prisma/client": "^6.16.2",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
@@ -38,7 +42,8 @@
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -67,7 +72,8 @@
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.20.5",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0"
+    "typescript-eslint": "^8.20.0",
+    "typescript-transform-paths": "^3.5.5"
   },
   "jest": {
     "moduleFileExtensions": [

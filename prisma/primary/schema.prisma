@@ -4,7 +4,49 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql" 
+  provider = "postgresql"
   url      = env("PRIMARY_DATABASE_URL")
 }
 
+model Token {
+  id                               String     @id
+  userId                           String
+  tokenHash                        String     @unique
+  scope                            TokenScope @default(READ)
+  isActive                         Boolean    @default(true)
+  expiresAt                        DateTime
+  createdAt                        DateTime   @default(now())
+  revokedAt                        DateTime?
+  description                      String?    @db.VarChar(255)
+  createdByUserId                  String
+  User_Token_createdByUserIdToUser User       @relation("Token_createdByUserIdToUser", fields: [createdByUserId], references: [id])
+  User_Token_userIdToUser          User       @relation("Token_userIdToUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdByUserId])
+  @@index([expiresAt])
+  @@index([isActive])
+  @@index([userId])
+}
+
+model User {
+  id                                String   @id
+  email                             String   @unique
+  name                              String
+  role                              Role     @default(USER)
+  password                          String
+  createdAt                         DateTime @default(now())
+  updatedAt                         DateTime
+  Token_Token_createdByUserIdToUser Token[]  @relation("Token_createdByUserIdToUser")
+  Token_Token_userIdToUser          Token[]  @relation("Token_userIdToUser")
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum TokenScope {
+  READ
+  WRITE
+  READ_WRITE
+}

@@ -4,8 +4,510 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"                 
+  provider = "postgresql"
   url      = env("SECONDARY_DATABASE_URL")
 }
 
+model ad_busca_compartilhada {
+  numg_compartilhamento BigInt         @id @default(autoincrement())
+  numg_busca            BigInt
+  numg_pessoa           Int
+  data_compartilhamento DateTime       @default(now()) @db.Timestamp(6)
+  share_token           String?        @unique @db.VarChar(255)
+  data_expiracao        DateTime?      @db.Timestamp(6)
 
+  ad_busca_salva ad_busca_salva @relation(fields: [numg_busca],   references: [numg_busca],   onDelete: NoAction, onUpdate: NoAction, map: "fk_id_busca")
+  ad_pessoa      ad_pessoa      @relation(fields: [numg_pessoa],  references: [numg_pessoa],  onDelete: NoAction, onUpdate: NoAction, map: "fk_numg_pessoa")
+
+  @@unique([numg_busca, numg_pessoa], map: "unique_busca_pessoa")
+}
+
+model ad_busca_salva {
+  numg_busca             BigInt          @id @default(autoincrement())
+  numg_pessoa_criador    Int
+  nome_busca             String?         @db.VarChar(255)
+  parametros_busca       Json            @db.Json
+  data_criacao           DateTime        @default(now()) @db.Timestamp(6)
+
+  ad_busca_compartilhada ad_busca_compartilhada[]
+  ad_pessoa              ad_pessoa       @relation(fields: [numg_pessoa_criador], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_numg_pessoa_criador")
+}
+
+model ad_cartorio {
+  numg_cartorio  Int          @id @default(autoincrement())
+  nome_cartorio  String?      @db.VarChar(256)
+  desc_cartorio  String?      @db.VarChar(1000)
+  numg_municipio Int
+
+  ad_municipio ad_municipio @relation(fields: [numg_municipio], references: [numg_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_cartorio_numg_municipio")
+  ad_imovel    ad_imovel[]
+}
+
+model ad_configuracao_camada {
+  numg_configuracao_camada Int       @id @default(autoincrement())
+  tipo_camada              String    @db.VarChar(50)
+  nome_camada              String    @db.VarChar(100)
+  border_color             String    @default("#000000") @db.VarChar(7)
+  border_alpha             Float     @default(1.0)
+  fill_alpha               Float     @default(0.0)
+  data_exclusao            DateTime? @db.Timestamp(6)
+  espessura_borda          Int?
+}
+
+model ad_destinacao {
+  numg_destinacao Int         @id @default(autoincrement())
+  nome_destinacao String?     @db.VarChar(256)
+  ad_imovel       ad_imovel[]
+}
+
+model ad_documento {
+  numg_documento   BigInt   @id(map: "pk_ad_documento") @default(autoincrement())
+  nome_documento   String   @unique(map: "uk_ad_documento_nome_documento") @db.VarChar(256)
+  desc_titulo      String?  @db.VarChar(256)
+  data_cadastro    DateTime @db.Timestamp(6)
+  numg_pessoa_cadastro Int
+
+  ad_pessoa ad_pessoa @relation(fields: [numg_pessoa_cadastro], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_documento_numg_pessoa_cadastro")
+
+  ad_imovel_ad_imovel_numg_documento_certidaoToad_documento  ad_imovel[]         @relation("ad_imovel_numg_documento_certidaoToad_documento")
+  ad_imovel_ad_imovel_numg_documento_escrituraToad_documento ad_imovel[]         @relation("ad_imovel_numg_documento_escrituraToad_documento")
+  ad_imovel_laudo                                            ad_imovel_laudo[]
+  ad_imovel_projeto_ad_imovel_projeto_numg_documento_certidaoToad_documento ad_imovel_projeto[] @relation("ad_imovel_projeto_numg_documento_certidaoToad_documento")
+  ad_imovel_projeto_ad_imovel_projeto_numg_documento_habiteseToad_documento ad_imovel_projeto[] @relation("ad_imovel_projeto_numg_documento_habiteseToad_documento")
+  ad_imovel_projeto_ad_imovel_projeto_numg_documento_projetoToad_documento  ad_imovel_projeto[] @relation("ad_imovel_projeto_numg_documento_projetoToad_documento")
+  ad_imovel_vistoria                                         ad_imovel_vistoria[]
+}
+
+model ad_finalidade_uso {
+  numg_finalidade_uso Int         @id @default(autoincrement())
+  nome_finalidade_uso String?     @db.VarChar(256)
+  desc_finalidade_uso String?     @db.VarChar(1000)
+  ad_imovel           ad_imovel[]
+}
+
+model ad_funcao {
+  numg_funcao           Int      @id(map: "pk_ad_funcao") @default(autoincrement())
+  codg_funcao           String   @unique(map: "uk_ad_funcao") @db.VarChar(100)
+  nome_funcao           String   @db.VarChar(256)
+  flag_publica          Boolean  @default(false)
+  data_cadastro         DateTime @default(now()) @db.Timestamp(6)
+  numg_pessoa_cadastro  Int
+  data_bloqueio         DateTime? @db.Timestamp(6)
+  numg_pessoa_bloqueio  Int?
+  numg_menu             Int?
+
+  ad_menu  ad_menu?  @relation(fields: [numg_menu], references: [numg_menu], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_funcao_numg_menu")
+  ad_pessoa_ad_funcao_numg_pessoa_bloqueioToad_pessoa ad_pessoa? @relation("ad_funcao_numg_pessoa_bloqueioToad_pessoa", fields: [numg_pessoa_bloqueio], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_funcao_numg_pessoa_bloqueio")
+  ad_pessoa_ad_funcao_numg_pessoa_cadastroToad_pessoa ad_pessoa  @relation("ad_funcao_numg_pessoa_cadastroToad_pessoa", fields: [numg_pessoa_cadastro], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_funcao_numg_pessoa_cadastro")
+
+  ad_grupo_funcao ad_grupo_funcao[]
+}
+
+model ad_grupo {
+  numg_grupo           Int      @id(map: "pk_ad_grupo") @default(autoincrement())
+  nome_grupo           String   @unique(map: "uk_ad_grupo") @db.VarChar(100)
+  desc_grupo           String?  @db.VarChar(256)
+  data_cadastro        DateTime @default(now()) @db.Timestamp(6)
+  numg_pessoa_cadastro Int
+  data_bloqueio        DateTime? @db.Timestamp(6)
+  numg_pessoa_bloqueio Int?
+  deleted_at           DateTime? @db.Timestamp(6)
+
+  ad_pessoa_ad_grupo_numg_pessoa_bloqueioToad_pessoa ad_pessoa? @relation("ad_grupo_numg_pessoa_bloqueioToad_pessoa", fields: [numg_pessoa_bloqueio], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_grupo_numg_pessoa_bloqueio")
+  ad_pessoa_ad_grupo_numg_pessoa_cadastroToad_pessoa ad_pessoa  @relation("ad_grupo_numg_pessoa_cadastroToad_pessoa", fields: [numg_pessoa_cadastro], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_grupo_numg_pessoa_cadastro")
+
+  ad_grupo_funcao ad_grupo_funcao[]
+  ad_grupo_pessoa ad_grupo_pessoa[]
+}
+
+model ad_grupo_funcao {
+  numg_grupo_funcao Int       @id(map: "pk_ad_grupo_funcao") @default(autoincrement())
+  numg_grupo        Int       @db.SmallInt
+  numg_funcao       Int       @db.SmallInt
+
+  ad_funcao ad_funcao @relation(fields: [numg_funcao], references: [numg_funcao], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_grupo_funcao_numg_funcao")
+  ad_grupo  ad_grupo  @relation(fields: [numg_grupo],  references: [numg_grupo],  onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_grupo_funcao_numg_grupo")
+
+  @@unique([numg_grupo, numg_funcao], map: "uk_ad_grupo_funcao")
+}
+
+model ad_grupo_pessoa {
+  numg_grupo_pessoa Int       @id(map: "pk_ad_grupo_pessoa") @default(autoincrement())
+  numg_grupo        Int
+  numg_pessoa       Int
+
+  ad_grupo  ad_grupo  @relation(fields: [numg_grupo],  references: [numg_grupo],  onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_grupo_pessoa_numg_grupo")
+  ad_pessoa ad_pessoa @relation(fields: [numg_pessoa], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_grupo_pessoa_numg_pessoa")
+
+  @@unique([numg_grupo, numg_pessoa], map: "uk_ad_grupo_pessoa")
+}
+
+model ad_imovel {
+  numg_imovel                 BigInt   @id @default(autoincrement())
+  numg_imovel_origem          BigInt?
+  codg_identificador          String?  @db.VarChar(50)
+  codg_latitude               String?  @db.VarChar(50)
+  codg_longitude              String?  @db.VarChar(50)
+  codg_cep                    String?  @db.VarChar(8)
+  desc_logradouro             String?  @db.VarChar(256)
+  numr_endereco               Int?
+  desc_bairro                 String?  @db.VarChar(256)
+  desc_lote                   String?  @db.VarChar(50)
+  desc_quadra                 String?  @db.VarChar(50)
+  numg_municipio              Int?
+  codg_zoneamento             String?  @db.VarChar(1)
+  codg_area_interesse         String?  @db.VarChar(1)
+  numg_finalidade_uso         Int?
+  flag_edificado              Boolean?
+  numr_pavimento              Int?
+  codg_estado_imovel          String?  @db.VarChar(1)
+  codg_ocupacao               String?  @db.VarChar(1)
+  desc_parcialmente_ocupado   String?  @db.VarChar(256)
+  codg_tipo_imovel            String?  @db.VarChar(1)
+  numr_area_total             Decimal? @db.Decimal(20, 2)
+  numr_area_construida        Decimal? @db.Decimal(20, 2)
+  codg_registro_cartorio      String?  @db.VarChar(50)
+  codg_matricula_imovel       String?  @db.VarChar(50)
+  data_registro_imovel        DateTime? @db.Timestamp(0)
+  numg_cartorio               Int?
+  nome_proprietario           String?  @db.VarChar(256)
+  numg_documento_escritura    BigInt?
+  numg_documento_certidao     BigInt?
+  data_cadastro               DateTime @db.Timestamp(0)
+  numg_pessoa_cadastro        Int
+  data_bloqueio               DateTime? @db.Timestamp(6)
+  numg_pessoa_bloqueio        Int?
+  data_exclusao               DateTime? @db.Timestamp(6)
+  numg_pessoa_exclusao        Int?
+  numg_destinacao             Int?
+  numg_situacao_regularizacao Int?
+  numg_regiao                 Int?
+
+  ad_cartorio  ad_cartorio? @relation(fields: [numg_cartorio], references: [numg_cartorio], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_numg_cartorio")
+  ad_destinacao ad_destinacao? @relation(fields: [numg_destinacao], references: [numg_destinacao], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_numg_destinacao")
+
+  ad_documento_ad_imovel_numg_documento_certidaoToad_documento  ad_documento? @relation("ad_imovel_numg_documento_certidaoToad_documento",  fields: [numg_documento_certidao],  references: [numg_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_numg_documento_certidao")
+  ad_documento_ad_imovel_numg_documento_escrituraToad_documento ad_documento? @relation("ad_imovel_numg_documento_escrituraToad_documento", fields: [numg_documento_escritura], references: [numg_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_numg_documento_escritura")
+
+  ad_finalidade_uso ad_finalidade_uso? @relation(fields: [numg_finalidade_uso], references: [numg_finalidade_uso], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_numg_finalidade_uso")
+
+  ad_imovel       ad_imovel?  @relation("ad_imovelToad_imovel", fields: [numg_imovel_origem], references: [numg_imovel], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_numg_imovel_origem")
+  other_ad_imovel ad_imovel[] @relation("ad_imovelToad_imovel")
+
+  ad_municipio ad_municipio? @relation(fields: [numg_municipio], references: [numg_municipio], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_numg_municipio")
+
+  ad_pessoa_ad_imovel_numg_pessoa_bloqueioToad_pessoa ad_pessoa? @relation("ad_imovel_numg_pessoa_bloqueioToad_pessoa", fields: [numg_pessoa_bloqueio], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_numg_pessoa_bloqueio")
+  ad_pessoa_ad_imovel_numg_pessoa_cadastroToad_pessoa  ad_pessoa  @relation("ad_imovel_numg_pessoa_cadastroToad_pessoa", fields: [numg_pessoa_cadastro], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_numg_pessoa_cadastro")
+  ad_pessoa_ad_imovel_numg_pessoa_exclusaoToad_pessoa  ad_pessoa? @relation("ad_imovel_numg_pessoa_exclusaoToad_pessoa", fields: [numg_pessoa_exclusao], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_numg_pessoa_exclusao")
+
+  ad_situacao_regularizacao ad_situacao_regularizacao? @relation(fields: [numg_situacao_regularizacao], references: [numg_situacao_regularizacao], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_numg_situacao_regularizacao")
+
+  ad_imovel_favorito ad_imovel_favorito[]
+  ad_imovel_laudo    ad_imovel_laudo[]
+  ad_imovel_projeto  ad_imovel_projeto[]
+  ad_imovel_vistoria ad_imovel_vistoria[]
+}
+
+model ad_imovel_favorito {
+  numg_imovel_favorito Int    @id @default(autoincrement())
+  numg_imovel          BigInt
+  numg_pessoa          Int
+
+  ad_imovel ad_imovel @relation(fields: [numg_imovel], references: [numg_imovel], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_favorito_numg_imovel")
+  ad_pessoa ad_pessoa @relation(fields: [numg_pessoa], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_favorito_numg_pessoa")
+
+  @@unique([numg_imovel, numg_pessoa], map: "uk_ad_imovel_favorito")
+}
+
+model ad_imovel_laudo {
+  numg_imovel_laudo    Int      @id @default(autoincrement())
+  numg_imovel          BigInt
+  nome_responsavel     String   @db.VarChar(255)
+  codg_finalidade      String   @db.Char(1)
+  data_laudo           DateTime @db.Date
+  numg_documento_laudo BigInt
+  valr_minimo          Decimal? @db.Decimal(10, 2)
+  valr_medio           Decimal? @db.Decimal(10, 2)
+  valr_maximo          Decimal? @db.Decimal(10, 2)
+  data_cadastro        DateTime @db.Timestamp(6)
+  numg_pessoa_cadastro Int
+
+  ad_documento ad_documento @relation(fields: [numg_documento_laudo], references: [numg_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_laudo_numg_documento_laudo")
+  ad_imovel    ad_imovel    @relation(fields: [numg_imovel],         references: [numg_imovel],    onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_laudo_numg_imovel")
+  ad_pessoa    ad_pessoa    @relation(fields: [numg_pessoa_cadastro], references: [numg_pessoa],   onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_laudo_numg_pessoa_cadastro")
+}
+
+model ad_imovel_projeto {
+  numg_imovel_projeto   Int       @id @default(autoincrement())
+  numg_imovel           BigInt
+  nome_projeto          String    @db.VarChar(255)
+  numr_testada          Decimal?  @db.Decimal(10, 2)
+  data_projeto          DateTime? @db.Date
+  numg_documento_projeto BigInt?
+  data_aprovacao        DateTime? @db.Date
+  data_validade         DateTime? @db.Date
+  codg_sequencial_imovel String?  @db.VarChar(50)
+  codg_identificador_projeto String? @db.VarChar(50)
+  numg_documento_certidao BigInt?
+  numg_documento_habitese BigInt?
+  data_cadastro         DateTime? @db.Timestamp(6)
+  numg_pessoa_cadastro  Int?
+
+  ad_documento_ad_imovel_projeto_numg_documento_certidaoToad_documento  ad_documento? @relation("ad_imovel_projeto_numg_documento_certidaoToad_documento",  fields: [numg_documento_certidao], references: [numg_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_projeto_numg_documento_certidao")
+  ad_documento_ad_imovel_projeto_numg_documento_habiteseToad_documento  ad_documento? @relation("ad_imovel_projeto_numg_documento_habiteseToad_documento",  fields: [numg_documento_habitese], references: [numg_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_projeto_numg_documento_habitese")
+  ad_documento_ad_imovel_projeto_numg_documento_projetoToad_documento   ad_documento? @relation("ad_imovel_projeto_numg_documento_projetoToad_documento",   fields: [numg_documento_projeto], references: [numg_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_projeto_numg_documento_projeto")
+
+  ad_imovel ad_imovel @relation(fields: [numg_imovel], references: [numg_imovel], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_projeto_numg_imovel")
+  ad_pessoa ad_pessoa? @relation(fields: [numg_pessoa_cadastro], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_projeto_numg_pessoa_cadastro")
+}
+
+model ad_imovel_vistoria {
+  numg_imovel_vistoria    Int      @id @default(autoincrement())
+  numg_imovel             BigInt
+  nome_resposavel         String   @db.VarChar(255)
+  data_vistoria           DateTime @db.Date
+  numg_documento_vistoria BigInt
+  data_cadastro           DateTime @db.Timestamp(6)
+  numg_pessoa_cadastro    Int
+
+  ad_documento ad_documento @relation(fields: [numg_documento_vistoria], references: [numg_documento], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_vistoria_numg_documento_vistoria")
+  ad_imovel    ad_imovel    @relation(fields: [numg_imovel],             references: [numg_imovel],    onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_vistoria_numg_imovel")
+  ad_pessoa    ad_pessoa    @relation(fields: [numg_pessoa_cadastro],     references: [numg_pessoa],   onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_imovel_vistoria_numg_pessoa_cadastro")
+}
+
+model ad_instituicao {
+  numg_instituicao Int      @id @default(autoincrement())
+  nome_instituicao String?  @db.VarChar(256)
+  desc_instituicao String?  @db.VarChar(1000)
+  ad_pessoa        ad_pessoa[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ad_limite_busca {
+  numg_limit         Int       @id @default(autoincrement())
+  type               String    @unique @db.VarChar(255)
+  max_attempts       Int
+  decay_minutes      Int
+  max_saved_searches Int       @default(10)
+  created_at         DateTime? @default(now()) @db.Timestamp(6)
+  updated_at         DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model ad_macro_regiao {
+  numg_macro_regiao Int       @id @default(autoincrement())
+  nome_macro_regiao String    @db.VarChar(256)
+  desc_macro_regiao String    @db.VarChar(1000)
+  data_exclusao     DateTime? @db.Time(6)
+  ad_regiao         ad_regiao[]
+}
+
+model ad_menu {
+  numg_menu            Int      @id @default(autoincrement())
+  nome_menu            String   @db.VarChar(100)
+  desc_menu            String?  @db.VarChar(256)
+  data_cadastro        DateTime @default(now()) @db.Timestamp(6)
+  numg_pessoa_cadastro Int
+  data_bloqueio        DateTime? @db.Timestamp(6)
+  numg_pessoa_bloqueio Int?
+  deleted_at           DateTime? @db.Timestamp(6)
+
+  ad_funcao  ad_funcao[]
+
+  ad_pessoa_ad_menu_numg_pessoa_bloqueioToad_pessoa ad_pessoa? @relation("ad_menu_numg_pessoa_bloqueioToad_pessoa", fields: [numg_pessoa_bloqueio], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_menu_numg_pessoa_bloqueio")
+  ad_pessoa_ad_menu_numg_pessoa_cadastroToad_pessoa ad_pessoa  @relation("ad_menu_numg_pessoa_cadastroToad_pessoa", fields: [numg_pessoa_cadastro], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_menu_numg_pessoa_cadastro")
+}
+
+model ad_municipio {
+  numg_municipio Int        @id(map: "pk_ad_municipio") @default(autoincrement())
+  nome_municipio String     @db.VarChar(256)
+  sigl_uf        String     @db.Char(2)
+  flag_capital   Boolean    @default(false)
+  numg_regiao    Int?
+
+  ad_cartorio ad_cartorio[]
+  ad_imovel   ad_imovel[]
+  ad_regiao   ad_regiao? @relation(fields: [numg_regiao], references: [numg_regiao], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_municipio_numg_regiao")
+  ad_servico  ad_servico[]
+}
+
+model ad_pessoa {
+  numg_pessoa  Int     @id @default(autoincrement())
+  nome_pessoa  String  @db.VarChar(256)
+  desc_email   String  @unique(map: "uk_ad_pessoa_desc_emai") @db.VarChar(256)
+  desc_senha   String  @db.VarChar(256)
+  numg_instituicao Int
+  data_cadastro DateTime @db.Timestamp(0)
+
+  numg_pessoa_cadastro Int?
+  data_bloqueio        DateTime? @db.Timestamp(0)
+  numg_pessoa_bloqueio Int?
+  remember_token       String?   @db.VarChar(100)
+  deleted_at           DateTime? @db.Timestamp(6)
+
+  ad_busca_compartilhada ad_busca_compartilhada[]
+  ad_busca_salva         ad_busca_salva[]
+  ad_documento           ad_documento[]
+
+  ad_funcao_ad_funcao_numg_pessoa_bloqueioToad_pessoa ad_funcao[] @relation("ad_funcao_numg_pessoa_bloqueioToad_pessoa")
+  ad_funcao_ad_funcao_numg_pessoa_cadastroToad_pessoa ad_funcao[] @relation("ad_funcao_numg_pessoa_cadastroToad_pessoa")
+
+  ad_grupo_ad_grupo_numg_pessoa_bloqueioToad_pessoa   ad_grupo[] @relation("ad_grupo_numg_pessoa_bloqueioToad_pessoa")
+  ad_grupo_ad_grupo_numg_pessoa_cadastroToad_pessoa   ad_grupo[] @relation("ad_grupo_numg_pessoa_cadastroToad_pessoa")
+
+  ad_grupo_pessoa ad_grupo_pessoa[]
+
+  ad_imovel_ad_imovel_numg_pessoa_bloqueioToad_pessoa ad_imovel[] @relation("ad_imovel_numg_pessoa_bloqueioToad_pessoa")
+  ad_imovel_ad_imovel_numg_pessoa_cadastroToad_pessoa ad_imovel[] @relation("ad_imovel_numg_pessoa_cadastroToad_pessoa")
+  ad_imovel_ad_imovel_numg_pessoa_exclusaoToad_pessoa ad_imovel[] @relation("ad_imovel_numg_pessoa_exclusaoToad_pessoa")
+
+  ad_imovel_favorito ad_imovel_favorito[]
+  ad_imovel_laudo    ad_imovel_laudo[]
+  ad_imovel_projeto  ad_imovel_projeto[]
+  ad_imovel_vistoria ad_imovel_vistoria[]
+
+  ad_menu_ad_menu_numg_pessoa_bloqueioToad_pessoa ad_menu[] @relation("ad_menu_numg_pessoa_bloqueioToad_pessoa")
+  ad_menu_ad_menu_numg_pessoa_cadastroToad_pessoa ad_menu[] @relation("ad_menu_numg_pessoa_cadastroToad_pessoa")
+
+  ad_instituicao ad_instituicao @relation(fields: [numg_instituicao], references: [numg_instituicao], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_pessoa_numg_instituicao")
+
+  ad_pessoa_ad_pessoa_numg_pessoa_bloqueioToad_pessoa       ad_pessoa?  @relation("ad_pessoa_numg_pessoa_bloqueioToad_pessoa", fields: [numg_pessoa_bloqueio], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_pessoa_numg_pessoa_bloqueio")
+  other_ad_pessoa_ad_pessoa_numg_pessoa_bloqueioToad_pessoa ad_pessoa[] @relation("ad_pessoa_numg_pessoa_bloqueioToad_pessoa")
+
+  ad_pessoa_ad_pessoa_numg_pessoa_cadastroToad_pessoa       ad_pessoa?  @relation("ad_pessoa_numg_pessoa_cadastroToad_pessoa", fields: [numg_pessoa_cadastro], references: [numg_pessoa], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_pessoa_numg_pessoa_cadastro")
+  other_ad_pessoa_ad_pessoa_numg_pessoa_cadastroToad_pessoa ad_pessoa[] @relation("ad_pessoa_numg_pessoa_cadastroToad_pessoa")
+
+  ad_servico ad_servico[]
+}
+
+model ad_regiao {
+  numg_regiao       Int     @id @default(autoincrement())
+  nome_regiao       String  @db.VarChar(256)
+  desc_regiao       String  @db.VarChar(1000)
+  numg_macro_regiao Int?
+
+  ad_municipio    ad_municipio[]
+  ad_macro_regiao ad_macro_regiao? @relation(fields: [numg_macro_regiao], references: [numg_macro_regiao], onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_regiao_numg_macro_regiao")
+}
+
+model ad_servico {
+  numg_servico         Int       @id @default(autoincrement())
+  nome_servico         String?   @db.VarChar(256)
+  numg_municipio       Int
+  numg_tipo_servico    Int
+  codg_latitude        String?   @db.VarChar(50)
+  codg_longitude       String?   @db.VarChar(50)
+  data_cadastro        DateTime  @db.Timestamp(0)
+  numg_pessoa_cadastro Int
+  data_exclusao        DateTime? @db.Timestamp(6)
+
+  ad_municipio    ad_municipio    @relation(fields: [numg_municipio],       references: [numg_municipio],       onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_servico_numg_municipio")
+  ad_pessoa       ad_pessoa       @relation(fields: [numg_pessoa_cadastro],  references: [numg_pessoa],          onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_servico_numg_pessoa_cadastro")
+  ad_tipo_servico ad_tipo_servico @relation(fields: [numg_tipo_servico],     references: [numg_tipo_servico],     onDelete: NoAction, onUpdate: NoAction, map: "fk_ad_servico_numg_tipo_servico")
+}
+
+model ad_situacao_regularizacao {
+  numg_situacao_regularizacao Int      @id @default(autoincrement())
+  nome_situacao_regularizacao String?  @db.VarChar(256)
+  ad_imovel                   ad_imovel[]
+}
+
+model ad_tipo_servico {
+  numg_tipo_servico Int      @id @default(autoincrement())
+  nome_tipo_servico String?  @db.VarChar(256)
+  desc_tipo_servico String?  @db.VarChar(1000)
+  data_exclusao     DateTime? @db.Timestamp(6)
+  icon_name         String   @default("fa-phone") @db.VarChar(50)
+  icon_prefix       String   @default("fa") @db.VarChar(10)
+  marker_color      String   @default("orange") @db.VarChar(20)
+  label_color       String   @default("#000000") @db.VarChar(7)
+
+  ad_servico ad_servico[]
+}
+
+model cache {
+  key        String @id @db.VarChar(255)
+  value      String
+  expiration Int
+}
+
+model cache_locks {
+  key        String @id @db.VarChar(255)
+  owner      String @db.VarChar(255)
+  expiration Int
+}
+
+model failed_jobs {
+  id         BigInt   @id @default(autoincrement())
+  uuid       String   @unique(map: "failed_jobs_uuid_unique") @db.VarChar(255)
+  connection String
+  queue      String
+  payload    String
+  exception  String
+  failed_at  DateTime @default(now()) @db.Timestamp(0)
+}
+
+model job_batches {
+  id             String  @id @db.VarChar(255)
+  name           String  @db.VarChar(255)
+  total_jobs     Int
+  pending_jobs   Int
+  failed_jobs    Int
+  failed_job_ids String
+  options        String?
+  cancelled_at   Int?
+  created_at     Int
+  finished_at    Int?
+}
+
+model jobs {
+  id           BigInt @id @default(autoincrement())
+  queue        String @db.VarChar(255)
+  payload      String
+  attempts     Int    @db.SmallInt
+  reserved_at  Int?
+  available_at Int
+  created_at   Int
+
+  @@index([queue], map: "jobs_queue_index")
+}
+
+model migrations {
+  id        Int    @id @default(autoincrement())
+  migration String @db.VarChar(255)
+  batch     Int
+}
+
+model password_reset_tokens {
+  email      String    @id @db.VarChar(255)
+  token      String    @db.VarChar(255)
+  created_at DateTime? @db.Timestamp(0)
+}
+
+model pending_refreshes {
+  view_name    String    @id @db.VarChar
+  requested_at DateTime? @default(now()) @db.Timestamp(6)
+}
+
+model sessions {
+  id            String  @id @db.VarChar(255)
+  user_id       BigInt?
+  ip_address    String? @db.VarChar(45)
+  user_agent    String?
+  payload       String
+  last_activity Int
+
+  @@index([last_activity], map: "sessions_last_activity_index")
+  @@index([user_id], map: "sessions_user_id_index")
+}
+
+model users {
+  id                BigInt    @id @default(autoincrement())
+  name              String    @db.VarChar(255)
+  email             String    @unique(map: "users_email_unique") @db.VarChar(255)
+  email_verified_at DateTime? @db.Timestamp(0)
+  password          String    @db.VarChar(255)
+  remember_token    String?   @db.VarChar(100)
+  deleted_at        DateTime? @db.Timestamp(0)
+  created_at        DateTime? @db.Timestamp(0)
+  updated_at        DateTime? @db.Timestamp(0)
+}
