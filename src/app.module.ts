@@ -14,6 +14,7 @@ import { ImoveisModule } from './imoveis/imoveis.module';
     UsersModule,
     TokensModule,
     ImoveisModule,
+    UsersModule,
   ],
 })
 export class AppModule {}
