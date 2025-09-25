@@ -1,8 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
 
-export class ListUsersQuery {
+export class ListTokensQuery {
+  @ApiPropertyOptional({ enum: ['both', 'owner', 'creator'], default: 'both' })
+  @IsOptional()
+  @IsIn(['both', 'owner', 'creator'])
+  type: 'both' | 'owner' | 'creator' = 'both';
+
   @ApiPropertyOptional({ example: 1, default: 1 })
   @Type(() => Number)
   @IsOptional()

@@ -3,23 +3,19 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './app.module';
-import { setupSwagger } from './bootstrap/swagger';
-import { buildCorsOptionsFromEnv } from './config/cors.config';
 import { BigIntInterceptor } from './common/interceptors/bigint.interceptor';
+import { buildCorsOptionsFromEnv } from './config/cors.config'; // se já tiver
+import { setupSwaggerSecondary } from './bootstrap/swagger-secondary';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // CORS por env
-  app.enableCors(buildCorsOptionsFromEnv());
-
-  // middlewares / pipes / interceptors
+  app.enableCors(buildCorsOptionsFromEnv?.() ?? true);
   app.use(cookieParser());
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  app.useGlobalInterceptors(new BigIntInterceptor('string')); // ou 'number'
+  app.useGlobalInterceptors(new BigIntInterceptor('string'));
 
-  // Swagger separado
-  setupSwagger(app);
+  setupSwaggerSecondary(app);
 
   await app.listen(Number(process.env.PORT || 3333));
 }
