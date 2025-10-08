@@ -23,9 +23,6 @@
     "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "regen": "pnpm clean && pnpm prisma:gen:primary && pnpm prisma:gen:secondary"
   },
-  "prisma": {
-    "seed": "tsx prisma/primary/seed.ts"
-  },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.2",
