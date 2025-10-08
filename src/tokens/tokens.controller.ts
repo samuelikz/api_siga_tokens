@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth/jwt-auth.guard';
 import { TokensService } from './tokens.service';
-import { CreateTokenDto } from './dto/create-token.dto/create-token.dto';
+import { CreateTokenDto } from './dto/create-token.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('tokens')
