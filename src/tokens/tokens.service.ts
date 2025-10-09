@@ -1,3 +1,4 @@
+// src/tokens/tokens.service.ts
 import {
   BadRequestException,
   ForbiddenException,
@@ -10,82 +11,114 @@ import crypto from 'crypto';
 import type { Role, TokenScope } from 'src/common/types/enums';
 import type { TokenScope as DbTokenScope } from '@db/primary';
 
-const genId = () => crypto.randomUUID();
-const genApiKey = () => `perpart_${crypto.randomBytes(32).toString('base64url')}`;
-
-// Regra de escopo (WRITE não cobre READ; READ_WRITE cobre ambos)
-const CAN: Record<'READ' | 'WRITE', Set<TokenScope>> = {
-  READ: new Set<TokenScope>(['READ', 'READ_WRITE']),
-  WRITE: new Set<TokenScope>(['WRITE', 'READ_WRITE']),
+type Issuer = { id: string; role: Role };
+type ListQuery = { type?: 'both' | 'owner' | 'creator'; page?: number; pageSize?: number };
+type ListAllQuery = {
+  status?: 'active' | 'revoked' | 'expired';
+  scope?: 'READ' | 'WRITE' | 'READ_WRITE';
+  ownerId?: string;
+  creatorId?: string;
+  page?: number;
+  pageSize?: number;
 };
 
+// ---------- Helpers de chave ----------
+const genId = () => crypto.randomUUID();
+const genSecret = () => crypto.randomBytes(32).toString('base64url');
+const buildApiKey = (id: string, secret: string) => `perpart_${id}.${secret}`;
+
+const parseApiKey = (apiKey: string): { id: string; secret: string } | null => {
+  if (!apiKey?.startsWith('perpart_')) return null;
+  const dot = apiKey.indexOf('.');
+  if (dot < 0) return null;
+  const id = apiKey.substring('perpart_'.length, dot);
+  const secret = apiKey.substring(dot + 1);
+  if (!id || !secret) return null;
+  return { id, secret };
+};
+
+const hashSecret = async (secret: string) => {
+  const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS || 10);
+  return bcrypt.hash(secret, saltRounds);
+};
+const compareSecret = (secret: string, hash: string) => bcrypt.compare(secret, hash);
+
+// ---------- Escopos ----------
+const CAN: Record<'READ' | 'WRITE', Set<TokenScope>> = {
+  READ: new Set(['READ', 'READ_WRITE']),
+  WRITE: new Set(['WRITE', 'READ_WRITE']),
+};
+
+const allows = (required: TokenScope, tokenScope: TokenScope) =>
+  required === 'READ'
+    ? CAN.READ.has(tokenScope)
+    : required === 'WRITE'
+    ? CAN.WRITE.has(tokenScope)
+    : tokenScope === 'READ_WRITE';
+
+// ---------- Status ----------
+const computeStatus = (t: { isActive: boolean; revokedAt: Date | null; expiresAt: Date }) => {
+  if (t.revokedAt || !t.isActive) return 'revoked';
+  if (t.expiresAt <= new Date()) return 'expired';
+  return 'active';
+};
+
+// ---------- Service ----------
 @Injectable()
 export class TokensService {
   constructor(private prisma: PrismaPrimaryService) {}
 
-  /** Criação de token */
+  /** Cria um token para o owner (ou para si, se USER). Retorna { token, apiKey }. */
   async create(
-    issuer: { id: string; role: Role },
-    dto: { userId?: string; scope: TokenScope; expiresAt: string; description?: string }
+    issuer: Issuer,
+    dto: { userId?: string; scope: TokenScope; expiresAt: string; description?: string },
   ) {
-    // USER: não cria para terceiros
+    // USER não cria para terceiros
     if (issuer.role === 'USER' && dto.userId && dto.userId !== issuer.id) {
       throw new ForbiddenException('USER não pode criar tokens para outro usuário');
     }
-
-    // USER: só pode criar READ
+    // USER só READ
     if (issuer.role === 'USER' && dto.scope !== 'READ') {
       throw new ForbiddenException('USER só pode criar tokens com escopo READ');
     }
 
-    // expiresAt obrigatório e futuro
-    if (!dto.expiresAt) {
-      throw new BadRequestException('expiresAt é obrigatório');
-    }
+    if (!dto.expiresAt) throw new BadRequestException('expiresAt é obrigatório');
     const expiresAt = new Date(dto.expiresAt);
-    if (isNaN(expiresAt.getTime())) {
-      throw new BadRequestException('expiresAt inválido');
-    }
-    if (expiresAt <= new Date()) {
-      throw new BadRequestException('expiresAt deve ser uma data futura');
-    }
+    if (Number.isNaN(expiresAt.getTime())) throw new BadRequestException('expiresAt inválido');
+    if (expiresAt <= new Date()) throw new BadRequestException('expiresAt deve ser futura');
 
-    const targetUserId = issuer.role === 'ADMIN' ? (dto.userId ?? issuer.id) : issuer.id;
+    const ownerId = issuer.role === 'ADMIN' ? (dto.userId ?? issuer.id) : issuer.id;
 
-    const apiKey = genApiKey();
-    const saltRounds = Number(process.env.BCRYPT_SALT_ROUNDS || 10);
-    const tokenHash = await bcrypt.hash(apiKey, saltRounds);
+    // Owner precisa existir e estar ativo
+    const owner = await this.prisma.user.findUnique({ where: { id: ownerId } });
+    if (!owner) throw new BadRequestException('Usuário alvo não existe');
+    if (!owner.isActive) throw new ForbiddenException('Usuário alvo está inativo');
+
+    // Gera id + secret; persiste só o hash do secret
+    const id = genId();
+    const secret = genSecret();
+    const apiKey = buildApiKey(id, secret);
+    const tokenHash = await hashSecret(secret);
 
     const created = await this.prisma.token.create({
       data: {
-        id: genId(),
-        userId: targetUserId,       // dono
-        createdByUserId: issuer.id, // criador
+        id,
+        userId: ownerId,
+        createdByUserId: issuer.id,
         tokenHash,
         scope: dto.scope as DbTokenScope,
         description: dto.description,
         expiresAt,
       },
       select: {
-        id: true,
-        userId: true,
-        createdByUserId: true,
-        scope: true,
-        isActive: true,
-        expiresAt: true,
-        createdAt: true,
-        revokedAt: true,
-        description: true,
-        User_Token_userIdToUser: {
-          select: { id: true, name: true, email: true },
-        },
-        User_Token_createdByUserIdToUser: {
-          select: { id: true, name: true, email: true },
-        },
+        id: true, userId: true, createdByUserId: true, scope: true, isActive: true,
+        expiresAt: true, createdAt: true, revokedAt: true, description: true,
+        User_Token_userIdToUser: { select: { id: true, name: true, email: true } },
+        User_Token_createdByUserIdToUser: { select: { id: true, name: true, email: true } },
       },
     });
 
-    const tokenView = {
+    const view = {
       id: created.id,
       userId: created.userId,
       createdByUserId: created.createdByUserId,
@@ -101,22 +134,21 @@ export class TokensService {
       createdByEmail: created.User_Token_createdByUserIdToUser?.email ?? null,
     };
 
-    return { token: tokenView, apiKey };
+    return { token: view, apiKey };
   }
 
-  /** Revogação de token com checagem de permissão (ADMIN / owner / creator). Idempotente. */
-  async revoke(id?: string, issuer?: { id: string; role: Role }) {
+  /** Revoga um token (ADMIN/owner/creator). Idempotente. */
+  async revoke(id?: string, issuer?: Issuer) {
     if (!id) throw new BadRequestException('tokenId obrigatório');
 
     const token = await this.prisma.token.findUnique({ where: { id } });
     if (!token) throw new NotFoundException('Token não encontrado');
 
-    // permissão
     const isAdmin = issuer?.role === 'ADMIN';
     const isOwner = issuer?.id === token.userId;
     const isCreator = issuer?.id === token.createdByUserId;
     if (!isAdmin && !isOwner && !isCreator) {
-      throw new ForbiddenException('Você não tem permissão para revogar este token');
+      throw new ForbiddenException('Sem permissão para revogar este token');
     }
 
     if (!token.isActive || token.revokedAt) {
@@ -131,56 +163,46 @@ export class TokensService {
     return { ok: true, id, alreadyRevoked: false };
   }
 
-  /** Validação de apiKey por escopo requerido (WRITE não autoriza GET). */
+  /** Valida apiKey no formato perpart_<id>.<secret>, escopo requerido e estado do token/owner. */
   async validateKey(apiKey: string, required: TokenScope) {
-    const candidates = await this.prisma.token.findMany({
-      where: {
-        isActive: true,
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-      },
+    const parsed = parseApiKey(apiKey);
+    if (!parsed) return null;
+
+    const token = await this.prisma.token.findUnique({
+      where: { id: parsed.id },
       include: {
-        User_Token_userIdToUser: { select: { id: true, role: true, email: true } },
-        User_Token_createdByUserIdToUser: { select: { id: true, role: true, email: true } },
+        User_Token_userIdToUser: { select: { id: true, role: true, email: true, isActive: true } },
       },
     });
+    if (!token) return null;
 
-    for (const t of candidates) {
-      if (await bcrypt.compare(apiKey, t.tokenHash)) {
-        const tokenScope = t.scope as unknown as TokenScope;
+    // Estado do token
+    if (!token.isActive || token.revokedAt || token.expiresAt <= new Date()) return null;
 
-        // required será 'READ' para GET e 'WRITE' para POST/PUT/PATCH/DELETE no seu guard
-        const ok =
-          required === 'READ'
-            ? CAN.READ.has(tokenScope)
-            : required === 'WRITE'
-            ? CAN.WRITE.has(tokenScope)
-            : tokenScope === 'READ_WRITE'; // fallback se alguém passar 'READ_WRITE' explicitamente
+    // Confirma segredo
+    const ok = await compareSecret(parsed.secret, token.tokenHash);
+    if (!ok) return null;
 
-        if (ok) return t;
-        return null;
-      }
-    }
-    return null;
+    // Owner deve estar ativo
+    if (!token.User_Token_userIdToUser?.isActive) return null;
+
+    // Escopo
+    const tokenScope = token.scope as unknown as TokenScope;
+    return allows(required, tokenScope) ? token : null;
   }
 
-  /** Lista tokens onde o usuário é dono (owner) e/ou criador (creator) */
-  async listForUser(
-    me: { id: string; role: Role },
-    q: { type?: 'both' | 'owner' | 'creator'; page?: number; pageSize?: number }
-  ) {
+  /** Lista tokens do usuário autenticado (owner e/ou creator). */
+  async listForUser(me: Issuer, q: ListQuery) {
     const page = q.page ?? 1;
-    const take = q.pageSize ?? 20;
+    const take = q.pageSize ?? Number(process.env.DEFAULT_PAGE_SIZE ?? 20);
     const skip = (page - 1) * take;
 
-    const ownerCond = { userId: me.id };
-    const creatorCond = { createdByUserId: me.id };
+    const byOwner = { userId: me.id };
+    const byCreator = { createdByUserId: me.id };
     const where =
-      q.type === 'owner'
-        ? ownerCond
-        : q.type === 'creator'
-        ? creatorCond
-        : { OR: [ownerCond, creatorCond] };
+      q.type === 'owner' ? byOwner :
+      q.type === 'creator' ? byCreator :
+      { OR: [byOwner, byCreator] };
 
     const [rows, total] = await Promise.all([
       this.prisma.token.findMany({
@@ -189,15 +211,8 @@ export class TokensService {
         skip,
         take,
         select: {
-          id: true,
-          userId: true,
-          createdByUserId: true,
-          scope: true,
-          isActive: true,
-          expiresAt: true,
-          createdAt: true,
-          revokedAt: true,
-          description: true,
+          id: true, userId: true, createdByUserId: true, scope: true, isActive: true,
+          expiresAt: true, createdAt: true, revokedAt: true, description: true,
           User_Token_userIdToUser: { select: { id: true, name: true, email: true } },
           User_Token_createdByUserIdToUser: { select: { id: true, name: true, email: true } },
         },
@@ -211,6 +226,67 @@ export class TokensService {
       createdByUserId: t.createdByUserId,
       scope: t.scope as TokenScope,
       isActive: t.isActive,
+      status: computeStatus(t),
+      expiresAt: t.expiresAt.toISOString(),
+      createdAt: t.createdAt.toISOString(),
+      revokedAt: t.revokedAt ? t.revokedAt.toISOString() : null,
+      description: t.description ?? null,
+      ownerName: t.User_Token_userIdToUser?.name ?? null,
+      ownerEmail: t.User_Token_userIdToUser?.email ?? null,
+      createdByName: t.User_Token_createdByUserIdToUser?.name ?? null,
+      createdByEmail: t.User_Token_createdByUserIdToUser?.email ?? null,
+    }));
+
+    return { meta: { page, pageSize: take, total }, items };
+  }
+
+  /** Lista global (ADMIN) com filtros opcionais. */
+  async listAll(q: ListAllQuery) {
+    const page = q.page ?? 1;
+    const take = q.pageSize ?? Number(process.env.DEFAULT_PAGE_SIZE ?? 20);
+    const skip = (page - 1) * take;
+
+    const now = new Date();
+
+    // Filtros base
+    const whereBase: any = {};
+    if (q.scope) whereBase.scope = q.scope as any;
+    if (q.ownerId) whereBase.userId = q.ownerId;
+    if (q.creatorId) whereBase.createdByUserId = q.creatorId;
+
+    // Filtro por status
+    let where = whereBase;
+    if (q.status === 'active') {
+      where = { ...whereBase, isActive: true, revokedAt: null, expiresAt: { gt: now } };
+    } else if (q.status === 'revoked') {
+      where = { ...whereBase, OR: [{ isActive: false }, { revokedAt: { not: null } }] };
+    } else if (q.status === 'expired') {
+      where = { ...whereBase, isActive: true, revokedAt: null, expiresAt: { lte: now } };
+    }
+
+    const [rows, total] = await Promise.all([
+      this.prisma.token.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+        select: {
+          id: true, userId: true, createdByUserId: true, scope: true, isActive: true,
+          expiresAt: true, createdAt: true, revokedAt: true, description: true,
+          User_Token_userIdToUser: { select: { id: true, name: true, email: true } },
+          User_Token_createdByUserIdToUser: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      this.prisma.token.count({ where }),
+    ]);
+
+    const items = rows.map((t) => ({
+      id: t.id,
+      userId: t.userId,
+      createdByUserId: t.createdByUserId,
+      scope: t.scope as TokenScope,
+      isActive: t.isActive,
+      status: computeStatus(t),
       expiresAt: t.expiresAt.toISOString(),
       createdAt: t.createdAt.toISOString(),
       revokedAt: t.revokedAt ? t.revokedAt.toISOString() : null,

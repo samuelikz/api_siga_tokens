@@ -37,22 +37,22 @@ model User {
 }
 
 model Token {
-  id            String      @id
-  userId        String
-  tokenHash     String      @unique
-  scope         TokenScope  @default(READ)
-  isActive      Boolean     @default(true)
-  expiresAt     DateTime
-  createdAt     DateTime    @default(now())
-  revokedAt     DateTime?
-  description   String?     @db.VarChar(255)
-
+  id              String      @id
+  userId          String
+  tokenHash       String      @unique
+  scope           TokenScope  @default(READ)
+  isActive        Boolean     @default(true)
+  expiresAt       DateTime
+  createdAt       DateTime    @default(now())
+  revokedAt       DateTime?
+  description     String?     @db.VarChar(255)
   createdByUserId String
+
   User_Token_createdByUserIdToUser User @relation("Token_createdByUserIdToUser", fields: [createdByUserId], references: [id])
   User_Token_userIdToUser          User @relation("Token_userIdToUser", fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
-  @@index([createdByUserId])
-  @@index([expiresAt])
-  @@index([isActive])
+  @@index([userId, createdAt])
+  @@index([createdByUserId, createdAt])
+  @@index([isActive, expiresAt])
+  @@index([revokedAt])
 }

@@ -1,39 +1,68 @@
 // src/common/guards/api-key.guard.ts
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { REQUIRED_SCOPE_KEY } from '../decorators/required-scope.decorator';
 import { TokensService } from 'src/tokens/tokens.service';
 import { TokenScope } from 'src/common/types/enums';
+import type { Request } from 'express';
+
+type H = string | string[] | undefined;
+const first = (v: H) => (Array.isArray(v) ? v[0] : v);
+
+const inferRequiredScope = (method: string): TokenScope =>
+  ['GET', 'HEAD', 'OPTIONS'].includes(method.toUpperCase()) ? 'READ' : 'WRITE';
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
-  constructor(private readonly tokens: TokensService, private readonly reflector: Reflector) {}
+  constructor(
+    private readonly tokens: TokensService,
+    private readonly reflector: Reflector,
+  ) {}
 
-  async canActivate(ctx: ExecutionContext): Promise<boolean> {
-    const req = ctx.switchToHttp().getRequest();
-    const required = (this.reflector.get<TokenScope>(REQUIRED_SCOPE_KEY, ctx.getHandler()) ?? 'READ') as TokenScope;
+  /** Extrai apiKey de header, bearer ou query (apenas GET). */
+  private extractApiKey(req: Request): string {
+    const fromHeaders =
+      first(req.headers['x-api-key']) ??
+      first(req.headers['apikey']) ??
+      first(req.headers['api-key']);
 
-    // 1) header (x-api-key) OU Authorization: Bearer
-    const headerKey =
-      (req.headers['x-api-key'] as string) ||
-      (String(req.headers['authorization'] || '').startsWith('Bearer ')
-        ? String(req.headers['authorization']).slice(7)
-        : '');
+    const auth = first(req.headers['authorization']);
+    const fromBearer = auth?.startsWith('Bearer ') ? auth.slice(7).trim() : undefined;
 
-    // 2) query só é permitido em GET
-    const queryKey = req.method === 'GET' ? (req.query?.apikey as string) : '';
+    const fromQuery = typeof (req.query as any)?.apikey === 'string' ? (req.query as any).apikey : undefined;
 
-    // Se vier apikey na URL em método diferente de GET, rejeita explicitamente
-    if (req.method !== 'GET' && typeof req.query?.apikey === 'string') {
+    if (req.method !== 'GET' && fromQuery) {
       throw new UnauthorizedException('API key na URL só é permitida em requisições GET');
     }
 
-    const key = headerKey || queryKey;
-    if (!key) throw new UnauthorizedException('API key ausente');
+    const apiKey = fromHeaders || fromBearer || fromQuery;
+    if (!apiKey) {
+      throw new UnauthorizedException('API key ausente (x-api-key/api-key/apikey/Bearer)');
+    }
+    return apiKey;
+  }
 
-    const token = await this.tokens.validateKey(key, required);
-    if (!token) throw new ForbiddenException('API key inválida/expirada/sem escopo');
+  async canActivate(ctx: ExecutionContext): Promise<boolean> {
+    const req = ctx.switchToHttp().getRequest<Request>();
 
+    // 1) Determina escopo requerido
+    const decorated = this.reflector.get<TokenScope>(REQUIRED_SCOPE_KEY, ctx.getHandler());
+    const required = decorated ?? inferRequiredScope(req.method);
+
+    // 2) Extrai e valida apiKey
+    const apiKey = this.extractApiKey(req);
+    const token = await this.tokens.validateKey(apiKey, required);
+    if (!token) {
+      throw new ForbiddenException('API key inválida/expirada/revogada ou sem escopo suficiente');
+    }
+
+    // 3) Disponibiliza token no request
     (req as any).apiToken = token;
     return true;
   }

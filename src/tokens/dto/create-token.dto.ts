@@ -1,13 +1,5 @@
-import {
-  IsEnum,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Length,
-  Validate,
-  ValidatorConstraint,
-  ValidatorConstraintInterface,
-} from 'class-validator';
+// src/tokens/dto/create-token.dto.ts (mensagens curtas e diretas)
+import { IsEnum, IsOptional, IsString, IsUUID, Length, Validate, ValidatorConstraint, ValidatorConstraintInterface } from 'class-validator';
 import { IsISO8601 } from 'class-validator';
 import type { TokenScope } from 'src/common/types/enums';
 import { TokenScopeEnum } from 'src/common/types/enums';
@@ -15,28 +7,21 @@ import { TokenScopeEnum } from 'src/common/types/enums';
 @ValidatorConstraint({ name: 'IsFutureISODate', async: false })
 class IsFutureISODate implements ValidatorConstraintInterface {
   validate(value: string): boolean {
-    if (!value) return false;
     const d = new Date(value);
-    if (isNaN(d.getTime())) return false;
-    return d.getTime() > Date.now();
+    return !!value && !Number.isNaN(d.getTime()) && d.getTime() > Date.now();
   }
-  defaultMessage() {
-    return 'expiresAt deve ser uma data ISO válida no futuro';
-  }
+  defaultMessage() { return 'expiresAt deve ser uma data ISO válida no futuro'; }
 }
 
 export class CreateTokenDto {
-  /** ADMIN pode definir; USER será ignorado no service se enviar outro id */
   @IsOptional()
-  @IsUUID(4, { message: 'userId deve ser um UUID v4' })
+  @IsUUID(4, { message: 'userId deve ser UUID válido' })
   userId?: string;
 
-  /** 'READ' | 'WRITE' | 'READ_WRITE' */
   @IsEnum(TokenScopeEnum, { message: 'scope deve ser READ, WRITE ou READ_WRITE' })
   scope!: TokenScope;
 
-  /** ISO 8601 e obrigatoriamente no futuro */
-  @IsISO8601({}, { message: 'expiresAt deve ser uma data em formato ISO 8601' })
+  @IsISO8601({}, { message: 'expiresAt deve ser ISO 8601' })
   @Validate(IsFutureISODate)
   expiresAt!: string;
 
