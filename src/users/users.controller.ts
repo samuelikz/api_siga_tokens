@@ -3,24 +3,19 @@ import {
   Body,
   Controller,
   Delete,
-  ForbiddenException,
   Get,
   Param,
   Patch,
   Post,
   Query,
   UseGuards,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth/jwt-auth.guard';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiExtraModels,
-  ApiOkResponse,
-  ApiTags,
-  getSchemaPath,
-} from '@nestjs/swagger';
+import { RoleGuard } from 'src/common/guards/role/role.guard';
+import { RequireRole } from 'src/common/decorations/require-role.decorator';
 import { plainToInstance } from 'class-transformer';
+import { IsUUID } from 'class-validator';
 
 import { UsersService } from './users.service';
 import { PaginationQuery } from './dto/pagination.query';
@@ -31,37 +26,41 @@ import {
   UpdateUserAdminDto,
   UserDto,
 } from './dto/user.dto';
-import { Role } from './user.types';
 import { CurrentUser } from 'src/common/decorations/current-user.decorator';
 
+class IdBody {
+  @IsUUID()
+  userId!: string;
+}
+
 @Controller('users')
-@UseGuards(JwtAuthGuard)
-@ApiTags('users')
-@ApiBearerAuth('bearer')
-@ApiExtraModels(UserDto)
+@UseGuards(JwtAuthGuard, RoleGuard)
 export class UsersController {
-  constructor(private users: UsersService) {}
+  constructor(private readonly users: UsersService) {}
 
   // ======= ADMIN =======
 
-  /** Listar usuários (ADMIN) */
+  @Patch('deactivate')
+  @RequireRole('ADMIN')
+  deactivate(@Body() body: IdBody) {
+    return this.users.deactivate(body.userId);
+  }
+
+  @Patch('activate')
+  @RequireRole('ADMIN')
+  activate(@Body() body: IdBody) {
+    return this.users.activate(body.userId);
+  }
+
+  @Patch('toggle')
+  @RequireRole('ADMIN')
+  toggle(@Body() body: IdBody) {
+    return this.users.toggle(body.userId);
+  }
+
   @Get()
-  @ApiOkResponse({
-    schema: {
-      type: 'object',
-      properties: {
-        page: { type: 'integer', example: 1 },
-        pageSize: { type: 'integer', example: 20 },
-        total: { type: 'integer', example: 132 },
-        items: {
-          type: 'array',
-          items: { $ref: getSchemaPath(UserDto) },
-        },
-      },
-    },
-  })
-  async list(@Query() q: PaginationQuery, @CurrentUser() u: { role: Role }) {
-    if (u.role !== Role.ADMIN) throw new ForbiddenException();
+  @RequireRole('ADMIN')
+  async list(@Query() q: PaginationQuery) {
     const res = await this.users.list(q.page, q.pageSize);
     return {
       ...res,
@@ -69,88 +68,51 @@ export class UsersController {
     };
   }
 
-  /** Obter um usuário (ADMIN) */
   @Get(':id')
-  @ApiOkResponse({ type: UserDto })
-  async getOne(@Param('id') id: string, @CurrentUser() u: { role: Role }) {
-    if (u.role !== Role.ADMIN) throw new ForbiddenException();
+  @RequireRole('ADMIN')
+  async getOne(@Param('id', new ParseUUIDPipe()) id: string) {
     const user = await this.users.getOne(id);
     return plainToInstance(UserDto, user, { excludeExtraneousValues: true });
   }
 
-  /** Criar usuário (ADMIN) */
   @Post()
-  @ApiBody({ type: CreateUserDto })
-  @ApiOkResponse({ type: UserDto })
-  async create(@Body() dto: CreateUserDto, @CurrentUser() u: { role: Role }) {
-    if (u.role !== Role.ADMIN) {
-      throw new ForbiddenException('Apenas ADMIN pode criar usuários.');
-    }
+  @RequireRole('ADMIN')
+  async create(@Body() dto: CreateUserDto) {
     const user = await this.users.create(dto);
     return plainToInstance(UserDto, user, { excludeExtraneousValues: true });
   }
 
-  /** Atualizar usuário (ADMIN) - pode mudar role, email, nome e senha */
   @Patch(':id')
-  @ApiBody({ type: UpdateUserAdminDto })
-  @ApiOkResponse({ type: UserDto })
+  @RequireRole('ADMIN')
   async updateAdmin(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: Omit<UpdateUserAdminDto, 'id'>,
-    @CurrentUser() u: { role: Role },
   ) {
-    if (u.role !== Role.ADMIN) throw new ForbiddenException();
     const user = await this.users.updateAdmin({ id, ...dto });
     return plainToInstance(UserDto, user, { excludeExtraneousValues: true });
   }
 
-  /** Desativar usuário (ADMIN) = revogar todos os tokens */
-  @Post(':id/deactivate')
-  @ApiOkResponse({
-    schema: {
-      type: 'object',
-      properties: {
-        success: { type: 'boolean', example: true },
-        revoked: { type: 'integer', example: 3 },
-      },
-    },
-  })
-  async deactivate(@Param('id') id: string, @CurrentUser() u: { role: Role }) {
-    if (u.role !== Role.ADMIN) throw new ForbiddenException();
-    return this.users.deactivate(id);
-  }
-
-  /** Deletar usuário (ADMIN) */
   @Delete(':id')
-  @ApiOkResponse({ schema: { type: 'object', properties: { success: { type: 'boolean', example: true } } } })
-  async remove(@Param('id') id: string, @CurrentUser() u: { role: Role }) {
-    if (u.role !== Role.ADMIN) throw new ForbiddenException();
+  @RequireRole('ADMIN')
+  async remove(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.users.remove(id);
   }
 
   // ======= USUÁRIO COMUM =======
 
-  /** Ver meus dados */
   @Get('me/profile')
-  @ApiOkResponse({ type: UserDto })
   async me(@CurrentUser() u: { id: string }) {
     const user = await this.users.getOne(u.id);
     return plainToInstance(UserDto, user, { excludeExtraneousValues: true });
   }
 
-  /** Atualizar meu perfil (nome/email) */
   @Patch('me/profile')
-  @ApiBody({ type: UpdateOwnProfileDto })
-  @ApiOkResponse({ type: UserDto })
   async updateMe(@Body() dto: UpdateOwnProfileDto, @CurrentUser() u: { id: string }) {
     const user = await this.users.updateOwnProfile(u.id, dto);
     return plainToInstance(UserDto, user, { excludeExtraneousValues: true });
   }
 
-  /** Atualizar minha senha */
   @Patch('me/password')
-  @ApiBody({ type: UpdateOwnPasswordDto })
-  @ApiOkResponse({ schema: { type: 'object', properties: { success: { type: 'boolean', example: true } } } })
   async updateMyPassword(@Body() dto: UpdateOwnPasswordDto, @CurrentUser() u: { id: string }) {
     return this.users.updateOwnPassword(u.id, dto);
   }

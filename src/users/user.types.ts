@@ -1,4 +1,3 @@
-// src/users/user.types.ts
 export enum Role {
   ADMIN = 'ADMIN',
   USER = 'USER',
@@ -9,5 +8,6 @@ export type PublicUser = {
   email: string;
   name: string;
   role: Role;
+  isActive: boolean; 
   createdAt: Date;
 };

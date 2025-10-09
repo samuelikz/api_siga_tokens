@@ -1,49 +1,98 @@
-// src/users/dto/user.dto.ts
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEmail, IsEnum, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
-import { Expose } from 'class-transformer';               // <— ADICIONE
-import { Role } from '../user.types';
+import { Expose } from 'class-transformer';
+import { IsEmail, IsEnum, IsOptional, IsString, IsUUID, MinLength, IsBoolean } from 'class-validator';
 
+// =======================
+// DTO de saída (UserDto)
+// =======================
 export class UserDto {
-  @Expose()                                              // <— ADICIONE
-  @ApiProperty({ example: '8e4761ed-0214-4df9-b131-0f6607fa46f7' }) id!: string;
+  @Expose()
+  id!: string;
 
-  @Expose()                                              // <— ADICIONE
-  @ApiProperty({ example: 'admin@local.com' }) email!: string;
+  @Expose()
+  email!: string;
 
-  @Expose()                                              // <— ADICIONE
-  @ApiProperty({ example: 'Admin' }) name!: string;
+  @Expose()
+  name!: string;
 
-  @Expose()                                              // <— ADICIONE
-  @ApiProperty({ enum: Role, example: Role.ADMIN }) role!: Role;
+  @Expose()
+  role!: 'ADMIN' | 'USER';
 
-  @Expose()                                              // <— ADICIONE
-  @ApiProperty({ example: '2025-09-24T12:34:56.000Z' }) createdAt!: string;
-  
+  @Expose()
+  isActive!: boolean;
+
+  @Expose()
+  createdAt!: string;
 }
 
-// (demais DTOs de entrada podem ficar como estão)
+// =======================
+// DTOs de entrada
+// =======================
 export class CreateUserDto {
-  @IsEmail() email!: string;
-  @IsString() name!: string;
-  @IsOptional() @IsEnum(Role) role?: Role;
-  @IsString() @MinLength(6) password!: string;
+  @IsEmail()
+  email!: string;
+
+  @IsString()
+  name!: string;
+
+  @IsOptional()
+  @IsEnum(['ADMIN', 'USER'], {
+    message: 'role deve ser ADMIN ou USER',
+  })
+  role?: 'ADMIN' | 'USER';
+
+  @IsString()
+  @MinLength(6, { message: 'A senha deve ter pelo menos 6 caracteres' })
+  password!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateUserAdminDto {
-  @IsUUID() id!: string;
-  @IsOptional() @IsEmail() email?: string;
-  @IsOptional() @IsString() name?: string;
-  @IsOptional() @IsEnum(Role) role?: Role;
-  @IsOptional() @IsString() @MinLength(6) password?: string;
+  @IsUUID()
+  id!: string;
+
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsEnum(['ADMIN', 'USER'], {
+    message: 'role deve ser ADMIN ou USER',
+  })
+  role?: 'ADMIN' | 'USER';
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  password?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class UpdateOwnProfileDto {
-  @IsOptional() @IsEmail() email?: string;
-  @IsOptional() @IsString() name?: string;
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @IsOptional()
+  @IsString()
+  name?: string;
 }
 
 export class UpdateOwnPasswordDto {
-  @IsString() @MinLength(6) currentPassword!: string;
-  @IsString() @MinLength(6) newPassword!: string;
+  @IsString()
+  @MinLength(6)
+  currentPassword!: string;
+
+  @IsString()
+  @MinLength(6)
+  newPassword!: string;
 }

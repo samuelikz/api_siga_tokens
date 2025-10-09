@@ -1,14 +1,30 @@
-import { IsEmail, IsEnum, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, MinLength, IsBoolean } from 'class-validator';
 
-export class UpdateUserDto {
-  @IsUUID() id!: string;
+export class UpdateUserAdminDto {
+  id!: string;
 
-  @IsOptional() @IsEmail() email?: string;
-  @IsOptional() @IsString() name?: string;
+  @IsOptional()
+  @IsEmail()
+  email?: string;
 
-  @IsOptional() @IsEnum(['ADMIN', 'USER'] as const)
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6, {
+    message: 'A nova senha deve ter pelo menos 6 caracteres',
+  })
+  password?: string;
+
+  @IsOptional()
+  @IsEnum(['ADMIN', 'USER'], {
+    message: 'role deve ser ADMIN ou USER',
+  })
   role?: 'ADMIN' | 'USER';
 
-  @IsOptional() @IsString() @MinLength(6)
-  password?: string;
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

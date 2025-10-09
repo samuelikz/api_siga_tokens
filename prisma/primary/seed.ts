@@ -19,7 +19,7 @@ async function main() {
     where: { email },
     update: {
       name,
-      password,  
+      password,
       role,
       updatedAt: new Date(),
     },
