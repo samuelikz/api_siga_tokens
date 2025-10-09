@@ -376,7 +376,7 @@ Criação/Revogação de tokens (rotas primárias via JWT) está no módulo **To
     ```
   - Resposta:
     ```json
-    { "apiKey": "tok_...", "token": { "...dados do registro..." } }
+    { "apiKey": "perpart_...", "token": { "...dados do registro..." } }
     ```
 
 - `DELETE /tokens/:id` – revoga a chave (`revokedAt` + `isActive=false`).
@@ -410,7 +410,7 @@ Lista paginada de imóveis com “flatten” de joins.
 **Exemplo cURL:**
 ```bash
 curl "http://localhost:3333/imoveis?search=rua&page=1&pageSize=10" \
-  -H "x-api-key: tok_XXXX"
+  -H "x-api-key: perpart_XXXX"
 ```
 
 #### `GET /imoveis/:id`
@@ -421,7 +421,7 @@ Busca um imóvel por `numg_imovel` (BigInt representado como **string**).
 
 ```bash
 curl "http://localhost:3333/imoveis/983" \
-  -H "x-api-key: tok_XXXX"
+  -H "x-api-key: perpart_XXXX"
 ```
 
 #### `POST /imoveis`

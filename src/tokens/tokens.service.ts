@@ -11,7 +11,7 @@ import type { Role, TokenScope } from 'src/common/types/enums';
 import type { TokenScope as DbTokenScope } from '@db/primary';
 
 const genId = () => crypto.randomUUID();
-const genApiKey = () => `tok_${crypto.randomBytes(32).toString('base64url')}`;
+const genApiKey = () => `perpart_${crypto.randomBytes(32).toString('base64url')}`;
 
 // Regra de escopo (WRITE não cobre READ; READ_WRITE cobre ambos)
 const CAN: Record<'READ' | 'WRITE', Set<TokenScope>> = {
