@@ -13,7 +13,7 @@ export class TokenExpiryJob {
    * Roda a cada minuto e marca como inativos os tokens vencidos (não revogados).
    * Mantém revokedAt = null para diferenciar "revogado" de "expirado".
    */
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron(CronExpression.EVERY_12_HOURS)
   async deactivateExpiredTokens() {
     const now = new Date();
 

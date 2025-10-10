@@ -10,13 +10,13 @@ import { ScheduleModule } from '@nestjs/schedule';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     PrismaModule,   
     AuthModule,
     UsersModule,
     TokensModule,
     ImoveisModule,
     UsersModule,
-    ScheduleModule.forRoot(),
   ],
 })
 export class AppModule {}
