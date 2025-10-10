@@ -10,14 +10,24 @@ export class AuthService {
   async validate(email: string, password: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new UnauthorizedException('Credenciais inválidas');
-    if (!(await bcrypt.compare(password, user.password))) throw new UnauthorizedException('Credenciais inválidas');
+    if (!(await bcrypt.compare(password, user.password))) {
+      throw new UnauthorizedException('Credenciais inválidas');
+    }
     return user;
   }
 
   sign(user: { id: string; role: string }) {
-    return this.jwt.sign({ sub: user.id, role: user.role }, {
-      secret: process.env.JWT_SECRET!,
-      expiresIn: process.env.JWT_EXPIRES_IN || '1d',
-    });
+    // Se quiser permitir configurar via env, aceite apenas número em segundos
+    const envExpires = process.env.JWT_EXPIRES_IN;
+    const expiresIn =
+      envExpires && /^\d+$/.test(envExpires) ? Number(envExpires) : 60 * 60 * 24; // 1 dia
+
+    return this.jwt.sign(
+      { sub: user.id, role: user.role },
+      {
+        secret: process.env.JWT_SECRET ?? 'change-me',
+        expiresIn, // number (segundos) evita o erro de tipagem
+      },
+    );
   }
 }
