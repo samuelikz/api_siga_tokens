@@ -4,12 +4,15 @@ import {
   Controller,
   Delete,
   Get,
-  Param,
   Patch,
   Post,
   Query,
   UseGuards,
   ParseUUIDPipe,
+  Param,
+  BadRequestException,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth/jwt-auth.guard';
 import { RoleGuard } from 'src/common/guards/role/role.guard';
@@ -29,7 +32,7 @@ import {
 import { CurrentUser } from 'src/common/decorations/current-user.decorator';
 
 class IdBody {
-  @IsUUID()
+  @IsUUID(4, { message: 'userId deve ser um UUID v4' })
   userId!: string;
 }
 
@@ -40,20 +43,23 @@ export class UsersController {
 
   // ======= ADMIN =======
 
-  @Patch('deactivate')
+  @Patch('desactivate')
   @RequireRole('ADMIN')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   deactivate(@Body() body: IdBody) {
     return this.users.deactivate(body.userId);
   }
 
   @Patch('activate')
   @RequireRole('ADMIN')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   activate(@Body() body: IdBody) {
     return this.users.activate(body.userId);
   }
 
   @Patch('toggle')
   @RequireRole('ADMIN')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   toggle(@Body() body: IdBody) {
     return this.users.toggle(body.userId);
   }
@@ -92,10 +98,18 @@ export class UsersController {
     return plainToInstance(UserDto, user, { excludeExtraneousValues: true });
   }
 
-  @Delete(':id')
+  /**
+   * DELETE /users — Exclusão por body (sem ID na URL).
+   * Exige ADMIN. Rejeita userId via query string.
+   */
+  @Delete()
   @RequireRole('ADMIN')
-  async remove(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.users.remove(id);
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async removeByBody(@Body() body: IdBody, @Query('userId') userIdQuery?: string) {
+    if (typeof userIdQuery === 'string') {
+      throw new BadRequestException('userId não pode ser enviado na URL (query string).');
+    }
+    return this.users.remove(body.userId);
   }
 
   // ======= USUÁRIO COMUM =======
