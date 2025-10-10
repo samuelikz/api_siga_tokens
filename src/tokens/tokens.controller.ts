@@ -6,20 +6,17 @@ import {
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth/jwt-auth.guard';
 import { TokensService } from './tokens.service';
 import { CreateTokenDto } from './dto/create-token.dto';
+import { DeleteTokenDto } from './dto/delete-token.dto';
 import { ListTokensQuery } from './dto/list-tokens.query';
 import type { Role } from 'src/common/types/enums';
 
 type Issuer = { id: string; role: Role };
 const first = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v);
 
-class DeleteTokenDto {
-  tokenId?: string;
-}
-
 @UseGuards(JwtAuthGuard)
 @Controller('tokens')
 export class TokensController {
-  constructor(private readonly tokens: TokensService) {}
+  constructor(private readonly tokens: TokensService) { }
 
   /** Extrai o usuário autenticado do req.user em formatos comuns. */
   private getIssuer(req: any): Issuer {
@@ -55,11 +52,11 @@ export class TokensController {
     @Headers() h: Record<string, string | string[] | undefined>,
     @Body() body: DeleteTokenDto,
   ) {
-    // Não permitir tokenId na URL (query string)
     if (typeof req.query?.tokenId === 'string') {
       throw new BadRequestException('tokenId não pode ser enviado na URL (query string).');
     }
 
+    const first = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v);
     const fromHeader = first(h['x-token-id']) ?? first(h['tokenid']) ?? first(h['token-id']);
     const tokenId = fromHeader ?? body?.tokenId;
 
