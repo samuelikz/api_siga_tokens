@@ -1,4 +1,3 @@
-// src/scripts/run-token-expiry.ts
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from 'src/app.module';

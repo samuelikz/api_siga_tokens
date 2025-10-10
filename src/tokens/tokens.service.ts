@@ -1,4 +1,3 @@
-// src/tokens/tokens.service.ts
 import {
   BadRequestException,
   ForbiddenException,
@@ -73,11 +72,9 @@ export class TokensService {
     issuer: Issuer,
     dto: { userId?: string; scope: TokenScope; expiresAt: string; description?: string },
   ) {
-    // USER não cria para terceiros
     if (issuer.role === 'USER' && dto.userId && dto.userId !== issuer.id) {
       throw new ForbiddenException('USER não pode criar tokens para outro usuário');
     }
-    // USER só READ
     if (issuer.role === 'USER' && dto.scope !== 'READ') {
       throw new ForbiddenException('USER só pode criar tokens com escopo READ');
     }
@@ -89,12 +86,10 @@ export class TokensService {
 
     const ownerId = issuer.role === 'ADMIN' ? (dto.userId ?? issuer.id) : issuer.id;
 
-    // Owner precisa existir e estar ativo
     const owner = await this.prisma.user.findUnique({ where: { id: ownerId } });
     if (!owner) throw new BadRequestException('Usuário alvo não existe');
     if (!owner.isActive) throw new ForbiddenException('Usuário alvo está inativo');
 
-    // Gera id + secret; persiste só o hash do secret
     const id = genId();
     const secret = genSecret();
     const apiKey = buildApiKey(id, secret);
@@ -163,7 +158,7 @@ export class TokensService {
     return { ok: true, id, alreadyRevoked: false };
   }
 
-  /** Valida apiKey no formato perpart_<id>.<secret>, escopo requerido e estado do token/owner. */
+  /** Valida apiKey perpart_<id>.<secret>, escopo requerido e estado do token/owner. */
   async validateKey(apiKey: string, required: TokenScope) {
     const parsed = parseApiKey(apiKey);
     if (!parsed) return null;
@@ -176,17 +171,13 @@ export class TokensService {
     });
     if (!token) return null;
 
-    // Estado do token
     if (!token.isActive || token.revokedAt || token.expiresAt <= new Date()) return null;
 
-    // Confirma segredo
     const ok = await compareSecret(parsed.secret, token.tokenHash);
     if (!ok) return null;
 
-    // Owner deve estar ativo
     if (!token.User_Token_userIdToUser?.isActive) return null;
 
-    // Escopo
     const tokenScope = token.scope as unknown as TokenScope;
     return allows(required, tokenScope) ? token : null;
   }
@@ -248,13 +239,11 @@ export class TokensService {
 
     const now = new Date();
 
-    // Filtros base
     const whereBase: any = {};
     if (q.scope) whereBase.scope = q.scope as any;
     if (q.ownerId) whereBase.userId = q.ownerId;
     if (q.creatorId) whereBase.createdByUserId = q.creatorId;
 
-    // Filtro por status
     let where = whereBase;
     if (q.status === 'active') {
       where = { ...whereBase, isActive: true, revokedAt: null, expiresAt: { gt: now } };
@@ -298,5 +287,35 @@ export class TokensService {
     }));
 
     return { meta: { page, pageSize: take, total }, items };
+  }
+
+  /**
+   * Se o token estiver ATIVO -> revoga (inativa) e NÃO deleta.
+   * Se o token já estiver INATIVO -> deleta definitivamente.
+   * Permissões: ADMIN, owner ou creator.
+   */
+  async deleteOrRevoke(id: string, issuer: Issuer) {
+    if (!id) throw new BadRequestException('tokenId obrigatório');
+
+    const token = await this.prisma.token.findUnique({ where: { id } });
+    if (!token) throw new NotFoundException('Token não encontrado');
+
+    const isAdmin = issuer.role === 'ADMIN';
+    const isOwner = issuer.id === token.userId;
+    const isCreator = issuer.id === token.createdByUserId;
+    if (!isAdmin && !isOwner && !isCreator) {
+      throw new ForbiddenException('Sem permissão para deletar/revogar este token');
+    }
+
+    if (token.isActive && !token.revokedAt) {
+      await this.prisma.token.update({
+        where: { id },
+        data: { isActive: false, revokedAt: new Date() },
+      });
+      return { ok: true, id, action: 'revoked' as const };
+    }
+
+    await this.prisma.token.delete({ where: { id } });
+    return { ok: true, id, action: 'deleted' as const };
   }
 }

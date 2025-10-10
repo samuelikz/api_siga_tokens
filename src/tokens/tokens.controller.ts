@@ -1,17 +1,20 @@
 // src/tokens/tokens.controller.ts
 import {
-  Body, Controller, Delete, Get, Headers, Post, Query, Req,
-  UseGuards, BadRequestException, UsePipes, ValidationPipe, HttpCode,
+  Body, Controller, Delete, Get, Post, Query, Req,
+  UseGuards, BadRequestException, UsePipes, ValidationPipe, HttpCode, Headers
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/common/guards/jwt-auth/jwt-auth.guard';
 import { TokensService } from './tokens.service';
 import { CreateTokenDto } from './dto/create-token.dto';
 import { ListTokensQuery } from './dto/list-tokens.query';
-import { RevokeTokenDto } from './dto/revoke-token.dto';
 import type { Role } from 'src/common/types/enums';
 
 type Issuer = { id: string; role: Role };
 const first = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v);
+
+class DeleteTokenDto {
+  tokenId?: string;
+}
 
 @UseGuards(JwtAuthGuard)
 @Controller('tokens')
@@ -39,25 +42,33 @@ export class TokensController {
     return this.tokens.create(this.getIssuer(req), dto);
   }
 
-  /** DELETE /tokens/by-body — revoga por body.tokenId */
-  @Delete('by-body')
-  @HttpCode(200)
-  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async revokeByBody(@Req() req: any, @Body() body: RevokeTokenDto) {
-    return this.tokens.revoke(body.tokenId, this.getIssuer(req));
-  }
-
-  /** DELETE /tokens — revoga por header (tokenid | x-token-id | token-id) */
+  /**
+   * DELETE /tokens — se ATIVO: revoga; se INATIVO: deleta definitivamente.
+   * tokenId via header (x-token-id | tokenid | token-id) ou body { tokenId }.
+   * Proibido enviar tokenId na query string.
+   */
   @Delete()
   @HttpCode(200)
-  async revokeFromHeader(
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async deleteOrRevoke(
     @Req() req: any,
     @Headers() h: Record<string, string | string[] | undefined>,
+    @Body() body: DeleteTokenDto,
   ) {
-    const tokenId = first(h['tokenid']) ?? first(h['x-token-id']) ?? first(h['token-id']);
-    if (!tokenId) {
-      throw new BadRequestException('Informe o tokenId no header (tokenid, x-token-id ou token-id)');
+    // Não permitir tokenId na URL (query string)
+    if (typeof req.query?.tokenId === 'string') {
+      throw new BadRequestException('tokenId não pode ser enviado na URL (query string).');
     }
-    return this.tokens.revoke(tokenId, this.getIssuer(req));
+
+    const fromHeader = first(h['x-token-id']) ?? first(h['tokenid']) ?? first(h['token-id']);
+    const tokenId = fromHeader ?? body?.tokenId;
+
+    if (!tokenId) {
+      throw new BadRequestException(
+        'Informe o tokenId via header (x-token-id | tokenid | token-id) ou no body { tokenId }.'
+      );
+    }
+
+    return this.tokens.deleteOrRevoke(tokenId, this.getIssuer(req));
   }
 }
