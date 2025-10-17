@@ -180,7 +180,7 @@ Exemplo usado no projeto:
 
 ```ini
 # App
-PORT=3333
+PORT=3223
 NODE_ENV=development
 AUTH_COOKIE_NAME=accessToken
 
@@ -190,14 +190,23 @@ JWT_EXPIRES_IN=1d
 BCRYPT_SALT_ROUNDS=10
 
 # DBs
-PRIMARY_DATABASE_URL="postgresql://dbapiservice:dbapiservice@10.0.0.120:5431/dbapiservice"
-SECONDARY_DATABASE_URL="postgresql://sigapg:sigapg@10.0.0.120:5431/sigapg"
+PRIMARY_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/dbapiservice"
+SECONDARY_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/geodb"
 
 # User Default
 SEED_ADMIN_EMAIL=admin@local.com
 SEED_ADMIN_PASSWORD=admin
 SEED_ADMIN_NAME=Admin
 SEED_ADMIN_ROLE=ADMIN
+
+# Paginação (globais)
+PAGINATION_DEFAULT_PAGE=1
+PAGINATION_DEFAULT_PAGE_SIZE=20
+PAGINATION_MAX_PAGE_SIZE=200
+
+# Overrides por recurso (opcionais)
+CARTORIOS_PAGE_SIZE_DEFAULT=20
+IMOVEIS_PAGE_SIZE_DEFAULT=10
 
 # Cors 
 CORS_ORIGINS=http://localhost:*
@@ -206,7 +215,7 @@ CORS_ALLOWED_HEADERS=Content-Type,Authorization,x-api-key
 CORS_EXPOSED_HEADERS=Content-Length,Content-Disposition
 
 # Swagger
-SWAGGER_SERVER_URL=http://localhost:3011
+SWAGGER_SERVER_URL=http://localhost:3223
 CORS_CREDENTIALS=true
 CORS_MAX_AGE=86400
 SWAGGER_USER=admin
